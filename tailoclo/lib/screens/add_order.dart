@@ -1,5 +1,13 @@
+import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path/path.dart' as path;
+import 'package:path_provider/path_provider.dart' as syspaths;
+import 'package:provider/provider.dart';
+import 'package:tailoclo/models/client_info.dart';
+import 'package:tailoclo/models/order.dart';
+import 'package:tailoclo/providers/orders.dart';
 
 class AddOrderScreen extends StatefulWidget {
   static String id = '/add-order';
@@ -9,25 +17,72 @@ class AddOrderScreen extends StatefulWidget {
 
 class _AddOrderScreenState extends State<AddOrderScreen> {
   final _key = GlobalKey<FormState>();
-  String _name;
-  String _tallSize;
-  String _armSize;
-  String _waistSize;
-  String _pocketSize;
-  String _chestRotation;
-  String _waistRotation;
-  String _sidesRotation;
-  String _shouldersSize;
-  String _totalPrice;
-  String _payed;
-  String _moreDetails;
+  File _storedImage;
+  DateTime _deadline = DateTime.now();
+  String _name = '';
+  String _tallSize = '';
+  String _armSize = '';
+  String _waistSize = '';
+  String _pocketSize = '';
+  String _chestRotation = '';
+  String _waistRotation = '';
+  String _sidesRotation = '';
+  String _shouldersSize = '';
+  String _totalPrice = '';
+  String _payed = '';
+  String _moreDetails = '';
 
-  _trySubmit(){
+  _trySubmit(ctx){
     final isValid = _key.currentState.validate();
     FocusScope.of(context).unfocus();
     if(isValid){
       _key.currentState.save();
+      if(_deadline.day == DateTime.now().day){
+        _selectDate(ctx);
+      }
+      else{
+        Provider.of<Orders>(context, listen: false).addOrder(Order(
+          clientInfo: ClientInfo(
+            id: DateTime.now().toString(),
+            name: _name,
+            tallSize: _tallSize,
+            armSize: _armSize,
+            waistSize: _waistSize,
+            pocketSize: _pocketSize,
+            chestRotation: _chestRotation,
+            waistRotation: _waistRotation,
+            sidesRotation: _sidesRotation,
+            shouldersSize: _shouldersSize,
+          ),
+          moreDetails: _moreDetails,
+          image: _storedImage,
+          deadline: _deadline.toString(),
+          payed: _payed,
+          totalPrice: _totalPrice,
+        ));
+        Navigator.pop(context);
+      }
     }
+  }
+
+  Future<void> _pickImage() async{
+    final imageFile = await ImagePicker.pickImage(source: ImageSource.gallery, maxWidth: 600);
+    if(imageFile == null) return;
+    setState(() {_storedImage = imageFile;});
+    final appDir = await syspaths.getApplicationDocumentsDirectory();
+    final fileName = path.basename(imageFile.path);
+    final savedImage = await imageFile.copy('${appDir.path}/$fileName');
+    setState(() {_storedImage = savedImage;});
+  }
+
+  _selectDate(ctx) async{
+    final date = await showDatePicker(
+        context: ctx,
+        initialDate: DateTime.now(),
+        firstDate: DateTime.now().subtract(Duration(days: 30)),
+        lastDate: DateTime.now().add(Duration(days: 365)),
+    );
+    setState(() {_deadline = date;});
   }
 
   @override
@@ -37,6 +92,18 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
         title: Text('طلب جديد'),
         centerTitle: true,
         elevation: 0,
+        actions: <Widget>[
+          Builder(
+            builder: (BuildContext ctx) {
+              return IconButton(
+                icon: Icon(Icons.date_range),
+                onPressed: (){
+                  _selectDate(ctx);
+                },
+              );
+            },
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(20.0),
@@ -48,29 +115,52 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
               Expanded(
                 child: ListView(
                   children: <Widget>[
-                    TextFormField(
-                      textDirection: TextDirection.rtl,
-                      validator: (value){
-                        if(value.isEmpty)
-                          return 'اكتب الاسم';
-                        return null;
-                      },
-                      onSaved: (value){
-                        _name = value;
-                      },
-                      decoration: InputDecoration(
-                        labelText: 'الأسم',
-                        enabledBorder: OutlineInputBorder(
-                            borderSide: BorderSide()
+                    Row(
+                      children: <Widget>[
+                        Container(
+                          padding: EdgeInsets.all(3),
+                          width: 80,
+                          height: 80,
+                          decoration: BoxDecoration(
+                            border: Border.all(),
+                          ),
+                          child: _storedImage == null ?
+                            IconButton(
+                              icon: Icon(Icons.image),
+                              onPressed: _pickImage,
+                            ) : Image.file(
+                            _storedImage,
+                            fit: BoxFit.cover,
+                            width: double.infinity,
+                          ),
                         ),
-                        focusedBorder: OutlineInputBorder(
-                            borderSide: BorderSide()
+                        SizedBox(width: 15,),
+                        Expanded(
+                          child: TextFormField(
+                            textDirection: TextDirection.rtl,
+                            validator: (value){
+                              if(value.isEmpty)
+                                return 'اكتب الاسم';
+                              return null;
+                            },
+                            onSaved: (value){
+                              _name = value;
+                            },
+                            decoration: InputDecoration(
+                              labelText: 'الأسم',
+                              enabledBorder: OutlineInputBorder(),
+                              focusedBorder: OutlineInputBorder(),
+                              errorBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(color: Colors.red)
+                              ),
+                              focusedErrorBorder: OutlineInputBorder(
+                                  borderSide: BorderSide(color: Colors.red)
+                              ),
+                            ),
+                            cursorColor: Colors.black,
+                          ),
                         ),
-                        errorBorder: OutlineInputBorder(
-                            borderSide: BorderSide(color: Colors.red)
-                        ),
-                      ),
-                      cursorColor: Colors.black,
+                      ],
                     ),
                     SizedBox(height: 15,),
                     Row(
@@ -83,12 +173,8 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
                             },
                             decoration: InputDecoration(
                               labelText: 'الطول',
-                              enabledBorder: OutlineInputBorder(
-                                  borderSide: BorderSide()
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                  borderSide: BorderSide()
-                              ),
+                              enabledBorder: OutlineInputBorder(),
+                              focusedBorder: OutlineInputBorder(),
                               errorBorder: OutlineInputBorder(
                                   borderSide: BorderSide(color: Colors.red)
                               ),
@@ -337,19 +423,25 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
                 ),
               ),
               SizedBox(height: 15,),
-              FlatButton(
-                child: Padding(
-                  padding: const EdgeInsets.all(10.0),
-                  child: Text(
-                    'تم',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.white,
+              Builder(
+                builder: (BuildContext ctx) {
+                  return FlatButton(
+                    child: Padding(
+                      padding: const EdgeInsets.all(10.0),
+                      child: Text(
+                        'تم',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.white,
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-                color: Colors.black,
-                onPressed: _trySubmit,
+                    color: Colors.black,
+                    onPressed: (){
+                      _trySubmit(ctx);
+                    },
+                  );
+                },
               ),
             ],
           ),
